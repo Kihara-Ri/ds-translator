@@ -1,6 +1,7 @@
 .DS_Store
 .vscode/
 __pycache__/
+data/
 log.txt
 words.json
 test.py

@@ -4,9 +4,11 @@
 # 对于查询的单词等, 使用另一个文件进行存储
 
 import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from tzlocal import get_localzone
+from utils import append_dict_to_json
 
 # 保存时区
 LOCAL_ZONE = get_localzone()
@@ -46,10 +48,49 @@ def log_message(question: str, answer: str, prompt_type: str, log_file: str = No
     file.write(log_entry)
   print(f"日志已记录到 {log_file} 文件中")
 
+def word_format(input_text: str, answer: str, request_time: str, data_file: str = None):
+  """
+  提取大模型输出的数据
+  格式化输出为json数据
+  """
+  base_dir = os.path.dirname(os.path.abspath(__file__))
+  if data_file is None:
+    data_file = os.path.join(base_dir, "../data/word_data.json")
+  data_dir = os.path.dirname(data_file)
+  if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+  pattern = re.compile(
+    r"最接近的中文解释:\s*(?P<ans1>.+?)\s*"
+    r"作为俚语或日常用法:\s*(?P<ans2>.+?)\s*"
+    r"常用语境:\s*(?P<ans3>.+?)\s*"
+    r"造句:\s*(?P<ans4>.+?)(?:\n|$)",
+    re.S
+  )
+  # 正则匹配回答中的关键信息
+  match = pattern.search(answer)
+  if match:
+    ans1 = match.group("ans1")
+    ans2 = match.group("ans2")
+    ans3 = match.group("ans3")
+    ans4 = match.group("ans4")
+  else:
+    print("未匹配到内容")
+    return 1
+  
+  word_data = {
+    "word": input_text,
+    "closest_chinese": ans1,
+    "slang_or_usage": ans2,
+    "context": ans3,
+    "example": ans4,
+    "time": request_time
+  }
+  append_dict_to_json(data_file, word_data)
+
+
 def main():
   print("log主程序已运行!")
-  print(get_current_time(SERVER_TIMEZONE))
-  print(get_current_time())
-  
+
 if __name__ == "__main__":
   main()

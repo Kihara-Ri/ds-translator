@@ -7,32 +7,45 @@ import shutil
 import tempfile
 from enum import Enum
 
-YELLOW_DOT = "\033[38;2;245;148;37m●\033[0m"
+ORANGE_DOT = "\033[38;2;245;148;37m●\033[0m"
 GREEN_DOT =  "\033[38;2;37;245;58m●\033[0m"
 RED_DOT = "\033[38;2;242;12;12m●\033[0m"
+# ANSI 清行 \x1b[2K
+CLEAN_SEQ = "\r\x1b[2K"
 
 class Animation(Enum):
-  dots = (['.', '..', '...'], 0.5) # 目前还有问题，一直是三个点，之前的动画帧没有被清除
+  dots = ([' ', '.', '..', '...'], 0.5) # 目前还有问题，一直是三个点，之前的动画帧没有被清除
   spin = (['-', '/', '|', '\\'], 0.15)
-
-# 控制加载动画 全局事件
-loading_event = threading.Event()
-
-def loading_animation(message: str = f"{YELLOW_DOT} 正在请求", animation_type: Enum = Animation.spin):
-  frames, frame_rate = animation_type.value
-  max_frame_len = max(len(f) for f in frames) # 计算最长帧用于清行
-  clear_line = '\r' + ' ' * (len(message) + 1 + max_frame_len)
   
+class RequestStatus(Enum):
+  start = f"{ORANGE_DOT} 发起请求"
+  in_progress = f"{ORANGE_DOT} 正在请求"
+  completed = f"{GREEN_DOT} 请求完毕"
+  failed = f"{RED_DOT} 请求失败"
+
+animation_event = threading.Event()
+request_done = threading.Event()
+"""
+对于动画线程有新的问题:
+1. 发起请求时显示 "正在请求" 的加载动画
+2. 当请求完成时，即主线程的 answer (非流式传输)变量被赋值时，加载动画线程应该停止
+并且立即显示 "请求完毕" 的提示 
+但是在主进程中，加载动画线程的状态是无法被直接访问的
+【这是否意味着需要想办法先阻塞主进程代码的运行】
+3. 对于流式传输，answer 变量一旦有了值，动画应该改变为 "正在流式传输" 的状态
+"""
+def loading_animation(animation_type: Enum = Animation.spin, isStream: bool = False):
+  """
+  动态加载动画，支持状态切换
+  """
+  frames, frame_rate = animation_type.value
   for frame in itertools.cycle(frames):
-    if not loading_event.is_set():
-      # 每次打印前都进行一次清空
-      print(f'{clear_line}\r{message} {frame}', end = "", flush = True)
-      time.sleep(frame_rate)
-    else:
+    if request_done.is_set():
+      print(f"{CLEAN_SEQ}{RequestStatus.completed.value}", end = '', flush = True)
       break
-  # 请求完成后，清空动画并打印“请求完毕”
-  # 需要注意这里的 end 和 flush
-  print(f'{clear_line}\r{GREEN_DOT} 请求完毕', end = "\n", flush = False) # 清除加载动画
+    status = RequestStatus.in_progress.value if animation_event.is_set() else RequestStatus.start.value
+    print(f"{CLEAN_SEQ}\r{status} {frame}", end = '', flush = True)
+    time.sleep(frame_rate)
 
 def measure_time(func):
   """

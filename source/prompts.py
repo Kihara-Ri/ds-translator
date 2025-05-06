@@ -1,7 +1,12 @@
 from enum import Enum
 
 class User_prompt(Enum):
-  default_answer = "请较简洁地回答我的问题: {text}"
+  default_answer = """请较简洁地回答我的问题: 
+{text}
+要求：
+1. 使用中文
+2. 不要使用转义符号，不要使用 markdown 格式中的强调符号
+"""
 
 class Translator(Enum):
   fast_translate = """请识别下面要翻译的句子是中/日/英三种语言中的哪种，如果确定了是哪一国语言，则根据要求将其翻译成另外两国语言

@@ -10,7 +10,7 @@ from openai import OpenAI
 from prompts import Translator, User_prompt
 from log import log_message, get_current_time, word_format
 from utils import Animation, loading_animation, measure_time, \
-animation_event, request_done, RED_DOT, print_lock
+animation_event, request_done, RED_DOT, print_lock, typewriter
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -74,7 +74,7 @@ def send_messages(input_text: str,
             if reply == '':
               animation_event.set() # 设置动画状态为正在请求，API返回的第一个内容是空
             answer += reply
-            print(reply, end = '', flush = True)
+            typewriter(reply, delay = 0.02, end = '')
     else:
       request_done.set()
       answer = response.choices[0].message.content
@@ -92,7 +92,7 @@ def send_messages(input_text: str,
     animation_thread.join() # 等待动画线程结束
     if not isStream:
       print(f"\n{answer}")
-    print(f"\n使用的token数: {tokens_used}")
+    print(f"\n使用的token数: {tokens_used} || 总字符数: {len(answer)}")
     log_message(question = input_text, answer = answer, prompt_type = prompt_type)
     return answer, tokens_used, request_time
 

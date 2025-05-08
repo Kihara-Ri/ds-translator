@@ -151,6 +151,19 @@ def append_dict_to_json(path: str, record: dict) -> None:
   else:
     print(f"✅ 已安全将记录追加并写入 {path}")
 
+def typewriter(text: str, delay: float = 0.02, end = "\n") -> None:
+  """
+  逐字打印给定文本
+  :param text: 待打印的字符串
+  :param delay: 每个字符之间的延迟（秒），默认 0.02 秒，这个速度和大模型的输出速度差不多
+  """
+  for char in text:
+    sys.stdout.write(char)
+    sys.stdout.flush()
+    time.sleep(delay)
+  sys.stdout.write(end)
+  sys.stdout.flush()
+
 def main():
   print("utils.py程序已执行")
 

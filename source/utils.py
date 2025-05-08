@@ -5,13 +5,21 @@ import os
 import json
 import shutil
 import tempfile
+import sys
 from enum import Enum
 
 ORANGE_DOT = "\033[38;2;245;148;37m●\033[0m"
 GREEN_DOT =  "\033[38;2;37;245;58m●\033[0m"
 RED_DOT = "\033[38;2;242;12;12m●\033[0m"
+
 # ANSI 清行 \x1b[2K
 CLEAN_SEQ = "\r\x1b[2K"
+# 移动光标
+MOVE_CURSOR = "\033[1;1H"
+MOVE_CURSOR_SECOND_LINE = "\033[2;1H"
+
+# 清屏
+CLEAR_SCREEN = "\033[2J"
 
 class Animation(Enum):
   dots = ([' ', '.', '..', '...'], 0.5) # 目前还有问题，一直是三个点，之前的动画帧没有被清除
@@ -25,6 +33,7 @@ class RequestStatus(Enum):
 
 animation_event = threading.Event()
 request_done = threading.Event()
+print_lock = threading.Lock()
 """
 对于动画线程有新的问题:
 1. 发起请求时显示 "正在请求" 的加载动画
@@ -34,18 +43,58 @@ request_done = threading.Event()
 【这是否意味着需要想办法先阻塞主进程代码的运行】
 3. 对于流式传输，answer 变量一旦有了值，动画应该改变为 "正在流式传输" 的状态
 """
-def loading_animation(animation_type: Enum = Animation.spin, isStream: bool = False):
+
+# def clear_block(start_row: int, height: int):
+#   """
+#   清空指定区域的内容
+#   start_row: 从0开始计数
+#   """
+#   width = os.get_terminal_size().columns
+#   for i in range(height):
+#     sys.stdout.write(f"\033[{start_row + i};1H" + " " * width) # 定位到行首
+#   sys.stdout.flush() # 刷新输出缓冲区
+
+# def write_block(text, start_row: int):
+#   """将多行内容写入，从 start_row 开始"""
+#   width = os.get_terminal_size().columns
+#   lines = [text[i: i + width] for i in range(0, len(text), width)]
+#   for offset, line in enumerate(lines):
+#     sys.stdout.write(f"\033[{start_row + offset};1H" + line.ljust(width) + "\n") # 宽度不足补空格
+#   sys.stdout.flush()
+
+def loading_animation(animation_type: Enum = Animation.spin, 
+                      isStream: bool = False) -> None:
   """
   动态加载动画，支持状态切换
+  现在加载动画不会再吞掉流式输出
   """
   frames, frame_rate = animation_type.value
+  print(f"{RequestStatus.start.value}", end = '', flush = True) #  打印初始状态
   for frame in itertools.cycle(frames):
     if request_done.is_set():
-      print(f"{CLEAN_SEQ}{RequestStatus.completed.value}", end = '', flush = True)
+      with print_lock:
+        print(f"{CLEAN_SEQ}{RequestStatus.completed.value}", flush = True)
       break
-    status = RequestStatus.in_progress.value if animation_event.is_set() else RequestStatus.start.value
-    print(f"{CLEAN_SEQ}\r{status} {frame}", end = '', flush = True)
+    if animation_event.is_set():
+      with print_lock:
+        print(f"{CLEAN_SEQ}{RequestStatus.in_progress.value}...", flush = True)
+        print(f"-" * os.get_terminal_size().columns, flush = True)
+      break
+    with print_lock:
+      print(f"{CLEAN_SEQ}{RequestStatus.start.value} {frame}", end = '', flush = True)
     time.sleep(frame_rate)
+  
+  request_done.wait() # 阻塞直到请求完成
+  if isStream:
+    print(f"-" * os.get_terminal_size().columns, flush = True)
+    print(f"{RequestStatus.completed.value}", flush = True)
+  else:
+    print(f"{MOVE_CURSOR}{RequestStatus.completed.value}", flush = True)
+  
+  # while True:
+  #   if request_done.is_set():
+  #     print(f"{MOVE_CURSOR}{CLEAN_SEQ}{RequestStatus.completed.value}", flush = True)
+  #     break
 
 def measure_time(func):
   """

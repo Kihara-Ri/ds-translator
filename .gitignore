@@ -5,3 +5,4 @@ data/
 log.txt
 words.json
 test.py
+.env
